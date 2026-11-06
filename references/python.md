@@ -10,6 +10,8 @@ imports create side effects before importing a project for inspection.
 Profile list/string operations and repeated parsing on the actual workload;
 a regex or an operator alone does not establish quadratic behavior.
 Check interpreter/build and extension behavior before making concurrency/GIL claims.
+Free-threaded CPython builds (3.13 and later) remove the GIL that some code relies
+on as an implicit lock; check which build the project supports.
 
 ## Unused code
 
@@ -38,16 +40,25 @@ lack of parametrization alone do not prove bad tests.
 Use existing pytest/unittest suites. Pytest exit code 5 means no tests collected;
 exit 0 with only skipped tests still does not exercise behavior.
 The helper reads a fresh JUnit report from pytest, counts executed cases and
-keeps its reports/cache in a temporary directory.
+keeps its reports/cache in a temporary directory. A failed run carries a
+failure_kind: an ImportError or missing module during collection is environment,
+not a reproduced defect. When the project has a virtual environment, the hint
+suggests running its interpreter, for example
+--command '.venv/bin/python -m pytest --junitxml {report}'.
 
 For custom commands, write JUnit to {report}. If --scale is requested, the harness
-must process that workload and write {"observed_scale": N} to PCR_METRICS_PATH;
-the reviewer must inspect how the harness derives it. Exporting TEST_SCALE alone
-is insufficient.
+must process that workload and write {"observed_scale": N} to the path in
+CODESIFT_METRICS_PATH (PCR_METRICS_PATH is set to the same path for older
+harnesses); the reviewer must inspect how the harness derives it. Exporting
+TEST_SCALE alone is insufficient.
 
-The dependency helper parses declarative pyproject/requirements and literal
-setup.py declarations without executing setup.py. Dynamic/group includes and
-private resolution remain explicit coverage limits.
+The dependency helper reads pyproject (PEP 621 groups, Poetry including legacy
+dev-dependencies and custom sources, uv sources and indexes), requirements files
+with -r includes, continuation lines and --hash pins, setup.cfg, Pipfile, and
+literal setup.py declarations without executing setup.py. It reads setup.py even
+when requirements files exist. Per-line errors name file:line and leave the other
+lines parsed. Dynamic includes and private index resolution remain explicit
+coverage limits.
 
 Primary sources, checked 2026-11-03:
 [Vulture](https://github.com/jendrikseipp/vulture),

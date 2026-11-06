@@ -3,4 +3,4 @@
 set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 export PYTHONDONTWRITEBYTECODE=1
-exec python3 "$SCRIPT_DIR/smoke_test.py" "$@"
+exec "${CODESIFT_PYTHON:-python3}" "$SCRIPT_DIR/smoke_test.py" "$@"

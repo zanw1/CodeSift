@@ -3,4 +3,4 @@
 set -euo pipefail
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 export PYTHONDONTWRITEBYTECODE=1
-exec python3 "$SCRIPT_DIR/lib/source_checks.py" facts "$@"
+exec "${CODESIFT_PYTHON:-python3}" "$SCRIPT_DIR/lib/source_checks.py" facts "$@"

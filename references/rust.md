@@ -8,6 +8,9 @@ code, redundant implementations and gate effectiveness.
 Trace actual dispatch and callers through Result/Option conversion, async
 cancellation, ownership and synchronization. Measure clone/allocation costs;
 do not replace correct ownership with unsafe code to reduce an unmeasured cost.
+For custom synchronization, loom explores thread interleavings, and Miri detects
+many kinds of undefined behavior in unsafe code; both cover only what they run.
+Read the FFI notes in patterns.md before judging extern boundaries.
 
 Establish the durability contract before replacing sync_all with sync_data.
 A safe-looking Arc/Mutex can be unnecessary or required by the surrounding API;
@@ -40,10 +43,18 @@ and ignored tests, rather than only exit status.
 
 ## Validation
 
-The helper's automatic runner uses cargo test --locked --offline and a temporary
-target directory. Prepare dependencies/lockfiles through the project's normal
-workflow beforehand; missing prerequisites remain an incomplete/failed check.
-Supply an explicit --command for project-specific target/feature selections.
+The helper's automatic runner uses cargo test --locked --offline --no-fail-fast
+and a temporary target directory, and adds --workspace when the root manifest
+declares [workspace], so member crates are tested as well as the root package.
+--no-fail-fast keeps later test targets running after one fails, so the counts
+cover the whole run. The report lists the test targets that ran under
+tests.rust_targets; compare them with the members you meant to cover.
+
+Prepare dependencies/lockfiles through the project's normal workflow beforehand;
+missing prerequisites remain an incomplete/failed check, classified under
+failure_kind. Supply an explicit --command for project-specific target/feature
+selections. Avoid -- --nocapture there unless needed: test prints interleave with
+libtest's result lines and can break the summaries the helper counts.
 
 Profile optimized builds and separate build/startup cost from the workload.
 Never infer production performance from debug builds alone.

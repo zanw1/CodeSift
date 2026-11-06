@@ -44,12 +44,17 @@ contracts may justify separate implementations; visual similarity is insufficien
 
 Use the installed project runner. The bundled helper invokes an existing npm test
 script with CI=true and a timeout; it does not use npx to fetch missing tools.
-It recognizes common Jest/Vitest/Node summaries, or a fresh JUnit report from an
-explicit --command. Unknown output remains incomplete even with exit 0.
+It recognizes Jest/Vitest summaries, node:test TAP or spec output and mocha
+summaries, and adds up every summary block, because workspace runs print one per
+project. It also reads a fresh JUnit report from an explicit --command. Unknown
+output remains incomplete even with exit 0.
 
 Respect npm aliases, workspace/file/git sources, peer/optional declarations and
-configured registries. A public-registry match does not validate a locked version,
-package provenance or API.
+configured registries. The dependency helper applies scoped registries from the
+project .npmrc and npmRegistryServer from .yarnrc.yml; pnpm-workspace.yaml and
+lerna.json only produce a warning, so audit each member package (the units from
+collect_facts.sh) with its own --root. A public-registry match does not validate
+a locked version, package provenance or API.
 
 Primary sources, checked 2026-11-03:
 [Knip roots](https://knip.dev/explanations/entry-files),

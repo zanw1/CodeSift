@@ -9,8 +9,10 @@ The evidence/impact definitions in SKILL.md are authoritative.
 - Reachability and zombie code
 - Redundancy
 - Gate effectiveness
+- Cross-language and cross-service boundaries
 - Performance reasoning
 - Other systemic candidates
+- External candidate generators
 - Sources and case-study provenance
 
 ## Cross-language coding standards
@@ -136,6 +138,7 @@ projects; Vulture for Python candidates; compiler unused/unreachable diagnostics
 for native/Rust code. Check tool version/configuration and complete output.
 Do not auto-install a tool or treat its confidence score as a proof.
 Do not introduce broad whitelists solely to make the report green.
+See External candidate generators for further tools and their limits.
 
 **Report separately:** confirmed unused code, unresolved candidates, code used
 only by tests, and intentionally retained public/compatibility paths. Count
@@ -219,6 +222,51 @@ Recommend one of: keep, repair, consolidate, retire, or investigate. Provide a
 counterexample and affected requirement before calling a gate ineffective.
 Remove a safeguard only when its obligation remains covered or has been explicitly retired.
 
+## Cross-language and cross-service boundaries
+
+**Question:** Do both sides of a boundary agree on ownership, shape, meaning and failure?
+
+Each side of a boundary can look correct on its own, which is why defects here
+survive single-language review. Read both sides, and compare definitions
+mechanically where a tool can.
+
+| Boundary | Check |
+|---|---|
+| FFI and native extensions | Who allocates and frees each buffer, and with which allocator; how long borrowed pointers stay valid; thread affinity; whether panics or exceptions can cross; GIL or runtime-lock rules |
+| IDL and wire schemas | Protobuf/Thrift field numbers never reused, removed fields `reserved`, type changes treated as breaking, unknown enum values handled; schema-registry compatibility mode |
+| HTTP and RPC APIs | OpenAPI/GraphQL schema against real handlers: required fields, status codes, error bodies, pagination and versioning; generated clients regenerated after changes |
+| Frontend and backend types | Hand-written TypeScript types against server DTOs: optional versus nullable, enums, date formats, 64-bit integers beyond JavaScript's 2^53 safe range |
+| Database schema | Migrations against ORM models and raw SQL: nullability, defaults, indexes for new queries, constraint names; old and new code sharing one schema during a rolling deploy |
+| Configuration and environment | Every key read is defined in each deployment and every defined key is read; names and units match (timeout versus timeout_ms); string booleans parsed deliberately; defaults agree across services |
+| Errors and status codes | Domain errors map to HTTP/gRPC status consistently; retries key on retryable codes; boundary code does not turn failures into success or generic 500s |
+| Units, time and text | Seconds versus milliseconds, bytes versus characters, UTC versus local time and DST, naive versus aware timestamps, text encodings and normalization |
+
+Language specifics worth checking:
+
+- Rust: a panic that reaches an `extern "C"` function aborts the process (Rust
+  1.81 and later; undefined behavior before). `extern "C-unwind"` opts into
+  unwinding; `catch_unwind` at the boundary turns a panic into an error code.
+- C++: an exception that propagates through C frames is not portable; translate
+  it at the boundary.
+- CPython extensions: a function that returns NULL must have set an exception;
+  track new versus borrowed references. Free-threaded builds (3.13 and later)
+  remove the GIL that some code relied on as an implicit lock.
+- JNI: local references are freed when the native method returns and their
+  capacity is limited; check for a pending Java exception before further JNI calls.
+
+**String references are graph edges.** Route names, task and queue names, event
+topics, feature-flag keys, dependency-injection keys, template names, config keys,
+reflection targets and table names in raw SQL connect code that no call graph
+shows. Include them in reachability, rename and deletion analysis. Meta's SCARF,
+for example, combines per-language dependency graphs with usage signals such as
+API endpoints, logs and template rendering before it proposes a deletion.
+
+Useful mechanical comparisons when the project already uses the tool:
+`buf breaking` for protobuf, `oasdiff` for OpenAPI, Pact contract tests,
+`alembic check`, `makemigrations --check`, `prisma migrate diff`, and a diff of
+environment keys read in code against keys defined in deployment manifests.
+Treat their output like any candidate generator and confirm the reachable consequence.
+
 ## Performance reasoning
 
 For serial stages measured against the same baseline, total time is the sum of
@@ -253,6 +301,24 @@ Do not weaken durability, isolation or authorization to win a benchmark.
 - **State rebuild / retry overhead:** repeated work or unbounded retries on a
   reachable path. Verify the reason, resource budget and failure behavior.
 
+## External candidate generators
+
+These tools nominate candidates; their output stays a **hypothesis** until the
+evidence procedure in SKILL.md confirms a reachable consequence. Use a tool only
+when the project already has it or the user approves installing it. Record its
+version, configuration and complete output, and run it in a disposable copy when
+it writes caches or reports into the tree.
+
+| Tool | Adds | Limits |
+|---|---|---|
+| Go `deadcode` | Rapid Type Analysis from `main` packages; `-whylive` prints the call path that keeps a function alive; `-test` adds test executables | No roots in libraries without `main`; reflection, assembly and `go:linkname` need separate checks |
+| `staticcheck` U1000, Knip, Vulture, compiler lints | Unused identifiers, files, exports and dependencies | Configuration and roots decide the result; apply the reachability procedure |
+| jscpd | Token-based clone detection across many languages; its clone-type guide covers identifier- and literal-insensitive matching for renamed (Type-2) clones | Similar is not redundant; apply the redundancy table |
+| Mutation testing: mutmut, cargo-mutants, Stryker, PIT | Whether tests detect deliberate faults; surviving mutants point at weak oracles | Equivalent mutants survive legitimately; run on focused targets, not the whole repository |
+| Race detectors: TSan, `go test -race`, loom | Data races and explored interleavings | Only paths the run executes or the model enumerates |
+| Static analyzer plus LLM triage | Fewer false positives from CodeQL-style results, or extra candidates from inferred specifications | Triage can drop true positives and degrades on long contexts and chained conditions; keep dropped items visible |
+| SCIP indexes: scip-python, scip-typescript, scip-java, scip-clang, rust-analyzer | Precise cross-file definitions and references for the structural-tools step | Built for one build configuration; stale after edits |
+
 ## Sources and provenance
 
 Primary sources checked on 2026-11-03:
@@ -272,6 +338,24 @@ Primary sources checked on 2026-11-03:
 - [USENIX Security 2025 package-hallucination study](https://www.usenix.org/system/files/usenixsecurity25-spracklen.pdf):
   19.7% of recommended package references in that experiment were hallucinated,
   not 19.7% of all code samples or current code. Historical motivation only.
+
+Additional sources consulted for the November 2026 revision:
+
+- [SWR-Bench](https://arxiv.org/abs/2509.01494): review recall falls as the number
+  of issues per change grows; aggregating independent runs raised recall.
+- [OpenCodeReview](https://arxiv.org/abs/2608.09290): deterministic per-file dispatch
+  and a falsification-only reflector that sees the diff, not the reviewer's context.
+- [CR-Bench-v2](https://arxiv.org/abs/2611.02566): leading systems found roughly a
+  third of known defects; self-reflection improved detection.
+- [Trail of Bits differential-review](https://github.com/trailofbits/skills/tree/main/plugins/differential-review):
+  size-tiered review depth and caller-count blast radius.
+- [Meta SCARF](https://engineering.fb.com/2023/10/24/data-infrastructure/automating-dead-code-cleanup/):
+  dead-code removal over a combined cross-language dependency graph.
+- [Meta ACH](https://arxiv.org/abs/2501.12862): mutation-guided test generation;
+  line coverage alone would have rejected about half of the tests that killed mutants.
+- [Go deadcode](https://go.dev/blog/deadcode), [jscpd clone types](https://jscpd.dev/guides/clone-types),
+  [IRIS](https://arxiv.org/abs/2405.17238), [LLM false-positive reduction](https://arxiv.org/abs/2601.18844)
+  and [SCIP](https://github.com/scip-code/scip): candidate generators listed above.
 
 A real case study needs a source URL, revision, workload and evidence artifact.
 Never present invented file locations, timings or profiles as reproduced results.

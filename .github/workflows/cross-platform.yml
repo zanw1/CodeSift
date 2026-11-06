@@ -1,0 +1,71 @@
+name: Native cross-platform regressions
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.x"]
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install the existing pytest adapter prerequisite
+        shell: python
+        run: |
+          import subprocess
+          import sys
+          subprocess.check_call([sys.executable, "-m", "pip", "install", "pytest"])
+      - name: Run native Unix regression suite
+        if: runner.os != 'Windows'
+        shell: python
+        run: |
+          import subprocess
+          import sys
+          sys.exit(subprocess.call([sys.executable, "scripts/smoke_test.py"]))
+      - name: Run native Windows regression suite
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python scripts/smoke_test.py
+
+  windows-powershell-51:
+    name: Windows PowerShell 5.1 entry and argument regressions
+    runs-on: windows-latest
+    timeout-minutes: 5
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.11"
+      - name: Verify the legacy shell and invoke the Python entry points
+        shell: powershell
+        run: |
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "Windows PowerShell 5.1 is required" }
+          python scripts/smoke_test.py `
+            HelperRegressionTests.test_powershell_entry_preserves_unicode_and_argv_file `
+            HelperRegressionTests.test_powershell_trusted_exit_code_is_propagated `
+            HelperRegressionTests.test_json_argv_preserves_unicode_and_literal_arguments `
+            HelperRegressionTests.test_argv_files_are_relative_to_root_and_accept_utf8_bom `
+            HelperRegressionTests.test_reports_survive_restricted_stdout
+          exit $LASTEXITCODE

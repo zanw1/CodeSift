@@ -8,8 +8,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-from dependencies import read_dependencies
-from detect_lang import (
+from detect_lang import require_python  # noqa: E402
+
+# Check the interpreter before importing modules that need Python 3.11+ (tomllib).
+require_python()
+
+from dependencies import read_dependencies  # noqa: E402
+from detect_lang import (  # noqa: E402
     add_project_arguments,
     positive_int,
     print_report,

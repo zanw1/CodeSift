@@ -11,7 +11,7 @@ evidence-collection helpers. The agent investigates the code, explains its
 findings, proposes concrete changes, and waits for your approval before editing.
 
 [Install](#install) · [Usage](#usage) · [FAQ](#faq) · [Measured results](#measured-results) ·
-[Review contract](SKILL.md) · [GitHub](https://github.com/zanw1/CodeSift)
+[Review contract](SKILL.md) · [License](#license) · [GitHub](https://github.com/zanw1/CodeSift)
 
 ## What CodeSift reviews
 
@@ -355,3 +355,8 @@ The review guidance is language-aware. Structural tools such as code-graph MCPs,
 language servers and SCIP indexes can strengthen call-path analysis when available; direct source inspection remains necessary
 for coverage gaps and dynamic behavior. Bundled helpers provide observations,
 while the review connects them to the project's actual requirements.
+
+## License
+
+CodeSift is released under the [MIT License](LICENSE).
+
